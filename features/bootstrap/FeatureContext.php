@@ -1,25 +1,28 @@
 <?php
+
 use Behat\Behat\Context\Context;
 use Behat\Gherkin\Node\TableNode;
-require_once './classes/ORM.php';
-require_once './classes/User.php';
-require_once './classes/Room.php';
-require_once './classes/Message.php';
+
+require_once './classes/ChatORM.php';
+require_once './classes/ChatUser.php';
+require_once './classes/ChatRoom.php';
+require_once './classes/ChatMessage.php';
 
 class FeatureContext implements Context
 {
-    private $orm;
-    private $currentUser;
+    private ChatORM $orm;
+    private ?ChatUser $currentUser;
 
     public function __construct()
     {
-        $this->orm = new ORM();
+        $this->orm = new ChatORM();
+        $this->currentUser = null;
     }
 
     /**
      * @Given I am a new user
      */
-    public function iAmANewUser()
+    public function iAmANewUser(): void
     {
         $this->currentUser = null;
     }
@@ -27,49 +30,49 @@ class FeatureContext implements Context
     /**
      * @When I create a user with the name :arg1
      */
-    public function iCreateAUserWithTheName($arg1)
+    public function iCreateAUserWithTheName(string $username): void
     {
         $id = count($this->orm->getUsers());
-        $this->currentUser = new User($arg1, $id);
+        $this->currentUser = new ChatUser($username, $id);
         $this->orm->addUser($this->currentUser);
     }
 
     /**
      * @Then a user with the name :arg1 should exist
      */
-    public function aUserWithTheNameShouldExist($arg1)
+    public function aUserWithTheNameShouldExist(string $username): void
     {
-        $response = $this->orm->getUserByUsername($arg1);
+        $response = $this->orm->getUserByUsername($username);
         if (!$response['success']) {
             throw new Exception("User not found");
         }
-    } 
+    }
 
     /**
      * @Given I am a user
      */
-    public function iAmAUser()
+    public function iAmAUser(): void
     {
-        $this->currentUser = new User("test", 0);
+        $this->currentUser = new ChatUser("test", 0);
         $this->orm->addUser($this->currentUser);
     }
 
     /**
      * @When I create a room with the name :arg1
      */
-    public function iCreateARoomWithTheName($arg1)
+    public function iCreateARoomWithTheName(string $roomName): void
     {
         $id = count($this->orm->getRooms());
-        $room = new Room($arg1, $id);
+        $room = new ChatRoom($roomName, $id);
         $this->orm->addRoom($room);
     }
 
     /**
      * @Then a room with the name :arg1 should exist
      */
-    public function aRoomWithTheNameShouldExist($arg1)
+    public function aRoomWithTheNameShouldExist(string $roomName): void
     {
-        $response = $this->orm->getRoomByName($arg1);
+        $response = $this->orm->getRoomByName($roomName);
         if (!$response['success']) {
             throw new Exception("Room not found");
         }
@@ -78,19 +81,19 @@ class FeatureContext implements Context
     /**
      * @Given I am a user named :arg1
      */
-    public function iAmAUserNamed($arg1)
+    public function iAmAUserNamed(string $username): void
     {
-        $this->currentUser = new User($arg1, 0);
+        $this->currentUser = new ChatUser($username, 0);
         $this->orm->addUser($this->currentUser);
     }
 
     /**
      * @Given a room named :arg1 exists
      */
-    public function aRoomNamedExists($arg1)
+    public function aRoomNamedExists(string $roomName): void
     {
         $id = 5;
-        $room = new Room($arg1, $id);
+        $room = new ChatRoom($roomName, $id);
         $this->orm->addRoom($room);
     }
 
@@ -98,12 +101,13 @@ class FeatureContext implements Context
      * @When I post a message :arg1 in the room :arg2
      */
     public function iPostAMessageInTheRoom($arg1, $arg2)
-    {
-        $room = $this->orm->getRoomByName($arg2)['data'];
-        $id = count($this->orm->getMessagesByRoomId($room['id']));
-        $message = new Message($this->currentUser->getId(), $room['id'], $arg1, $id);
-        $this->orm->addMessage($message);
-    }
+{
+    $room = $this->orm->getRoomByName($arg2)['data'];
+    $id = count($this->orm->getMessagesByRoomId($room['id'])) + 1; // Modification de cette ligne
+    $message = new ChatMessage($this->currentUser->getId(), $room['id'], $arg1, $id);
+    $this->orm->addMessage($message);
+}
+
 
     /**
      * @Then the message :arg1 should be visible in the room :arg2
@@ -129,7 +133,7 @@ class FeatureContext implements Context
      */
     public function iAmAUser2()
     {
-        $this->currentUser = new User("test2", 0);
+        $this->currentUser = new ChatUser("test2", 0);
         $this->orm->addUser($this->currentUser);
     }
 
@@ -139,11 +143,11 @@ class FeatureContext implements Context
     public function aRoomNamedExistsWithTheFollowingMessages($arg1, TableNode $table)
     {
         $id = count($this->orm->getRooms()) + 1;
-        $room = new Room($arg1, $id);
+        $room = new ChatRoom($arg1, $id);
         $this->orm->addRoom($room);
-        foreach ($table as $row) {
-            $user = $this->orm->addUser(new User($row['user'], count($this->orm->getUsers())+1));
-            $message = new Message($user['data']['id'], $id, $row['message'], count($this->orm->getMessagesByRoomId($id)));
+        foreach ($table->getRows() as $row) {
+            $user = $this->orm->addUser(new ChatUser($row[0], count($this->orm->getUsers())+1));
+            $message = new ChatMessage($user['data']['id'], $id, $row[1], count($this->orm->getMessagesByRoomId($id)));
             $this->orm->addMessage($message);
         }
     }
@@ -164,8 +168,8 @@ class FeatureContext implements Context
         $room = $this->orm->getRoomByName($table->getRows()[0][0])['data'];
         $messages = $this->orm->getMessagesByRoomId($room['id']);
         $i = 0;
-        foreach ($table as $row) {
-            if ($messages['data'][$i]['content'] != $row['message'] || $messages['data'][$i]['user'] != $row['user']) {
+        foreach ($table->getRows() as $row) {
+            if ($messages['data'][$i]['content'] != $row[1] || $messages['data'][$i]['user'] != $row[0]) {
                 throw new Exception("Messages not in order");
             }
             $i++;
