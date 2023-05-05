@@ -100,13 +100,13 @@ class FeatureContext implements Context
     /**
      * @When I post a message :arg1 in the room :arg2
      */
-    public function iPostAMessageInTheRoom($arg1, $arg2)
-{
-    $room = $this->orm->getRoomByName($arg2)['data'];
-    $id = count($this->orm->getMessagesByRoomId($room['id'])) + 1; // Modification de cette ligne
-    $message = new ChatMessage($this->currentUser->getId(), $room['id'], $arg1, $id);
-    $this->orm->addMessage($message);
-}
+    public function iPostAMessageInTheRoom($arg1, $arg2): void
+    {
+        $room = $this->orm->getRoomByName($arg2)['data'];
+        $id = 0;
+        $message = new ChatMessage($this->currentUser->getUsername(), $room, $arg1, $id);
+        $this->orm->addMessage($message);
+    }
 
 
     /**
@@ -117,13 +117,12 @@ class FeatureContext implements Context
         $room = $this->orm->getRoomByName($arg2)['data'];
         $messages = $this->orm->getMessagesByRoomId($room["id"]);
         $found = false;
-        foreach ($messages['data'] as $message) {
-            if ($message['content'] == $arg1) {
+        foreach ($messages as $message) {
+            if ($message == $arg1) {
                 $found = true;
-                break;
             }
         }
-        if (!$found) {
+        if ($found == false) {
             throw new Exception("Message not found");
         }
     }
@@ -142,12 +141,12 @@ class FeatureContext implements Context
      */
     public function aRoomNamedExistsWithTheFollowingMessages($arg1, TableNode $table)
     {
-        $id = count($this->orm->getRooms()) + 1;
+        $id = 5;
         $room = new ChatRoom($arg1, $id);
         $this->orm->addRoom($room);
         foreach ($table->getRows() as $row) {
             $user = $this->orm->addUser(new ChatUser($row[0], count($this->orm->getUsers())+1));
-            $message = new ChatMessage($user['data']['id'], $id, $row[1], count($this->orm->getMessagesByRoomId($id)));
+            $message = new ChatMessage($user['data']['id'], $id, $row['message'], count($this->orm->getMessagesByRoomId($id))+1);
             $this->orm->addMessage($message);
         }
     }
